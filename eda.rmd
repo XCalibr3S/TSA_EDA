@@ -1,0 +1,66 @@
+---
+title: "Exploratory Data Analysis | Singapore Total Fertility Rate & Total Live Births"
+author: "Hunter Holt"
+date: "`r sys.Date()`"
+output:
+	pdf_document:
+		toc = TRUE,
+		toc_depth = 3,
+		number_sections = TRUE,
+		df_print = tibble,
+		theme = flatly
+		highlight = tango,
+---
+```{r setup, include=FALSE, warnings=FALSE}
+knitr::opts_chunk$set(
+	echo		= TRUE,
+	warnings	= FALSE,
+	message		= FALSE,
+	fig.align	= "center",
+	fig.width 	= 9,
+	fig.height	= 5
+)
+```
+
+# Introduction
+
+This exploratory data analysis (EDA) investigates the temporal features of two significant population indicators for Singapore:
+
+- **Total Fertility Rate (TFR):** the average number of children a woman would have over her lifetime at current age-specific fertility rates;
+- **Total Live Births (TLB):** the total number of live births recognised per year.
+
+The dates for the SingaporeCensus.csv reference dataset span from 1960 to 2024, sourced from the Singapore Department of Statistics. The objective is to recognise and analyse long-run trends, assess stationarity, and identify candidate time series models for a proposed training period 1960 - 2012 and a proposed forecasting performance assessed over the remaining 2013 - 2024 period.
+
+```{r libs, include=FALSE)
+library(tidyverse)	# for data wrangling & ggplot2
+library(tseries)	# for adf & kpss tests
+library(forecast)	# for acf/pacf, forecast & checkresiduals
+```
+
+---
+
+# Data Loading & Reshaping
+
+The given data is in a CSV file, which is optimal for computation. However, the data is in a 'wide format', where its temporal variables (i.e. years) are given as columns instead of years. We transpose the data and extract the two data columns we are interested in.
+
+```{r clean-load}
+raw <- read.csv("SingaporeCensus.csv", check.names = FALSE)
+
+# Tranpose
+long <- raw |>
+	rename(Series = DataSeries) |>
+	pivot_longer(cols = -Series, names_to = "Year", values_to = "Value") |>
+	mutate(Year = as.integer(Year)) |>
+	filter(Year >= 1960, Year <= 2024)
+	
+# Extract TFR and TLB data
+tfr_df <- long |>
+	filter(trimws(Series) == "Total Fertility Rate (TFR)") |>
+	arrange(Year)
+tlb_df <- long |>
+	filter(trimws(Series) == "Total Live-Births") |>
+	arrange(Year)
+	
+# Verify 65 years covered per dataset
+stopifnot(nrow(tfr_df) == 65, nrow(tlb_df) == 65)
+```
