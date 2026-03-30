@@ -1,12 +1,12 @@
 ---
-title: "Exploratory Data Analysis | Singapore Total Fertility Rate & Total Live Births"
+title: "Exploratory Data Analysis - Singapore Total Fertility Rate & Total Live Births"
 author: "Hunter Holt"
 date: "`r Sys.Date()`"
 output:
   pdf_document:
-    toc: true
+    toc: false
     toc_depth: 3
-    number_sections: true
+    number_sections: false
     df_print: tibble
     highlight: tango
 ---
@@ -14,7 +14,7 @@ output:
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(
 	echo		= TRUE,
-	warnings	= FALSE,
+	warning	= FALSE,
 	message		= FALSE,
 	fig.align	= "center",
 	fig.width 	= 9,
@@ -35,7 +35,11 @@ The dates for the SingaporeCensus.csv reference dataset span from 1960 to 2024, 
 library(tidyverse)	# for data wrangling & ggplot2
 library(tseries)	# for adf & kpss tests
 library(forecast)	# for acf/pacf, forecast & checkresiduals
+library(feasts)
 library(tsibble)	# for tsibble data structure
+library(patchwork)
+library(ggplot2)
+library(grid) 		# for figure structures
 ```
 
 ---
@@ -44,10 +48,12 @@ library(tsibble)	# for tsibble data structure
 
 The given data is in a CSV file, which is optimal for computation. However, the data is in a 'wide format', where its temporal variables (i.e. years) are given as columns instead of years. We transpose the data and extract the two data columns we are interested in.
 
-```{r clean-load-object, include=FALSE}
+Below is the transposition framework of the data.
+
+```{r clean-load-object, echo=FALSE}
 raw <- read.csv("SingaporeCensus.csv", check.names = FALSE, na.strings = c("", "NA", "na"))
 
-# Tranpose
+# Transpose
 long <- raw |>
     rename(Series = DataSeries) |>
     pivot_longer(cols = -Series, names_to = "Year", values_to = "Value", 
@@ -66,22 +72,243 @@ tlb_df <- long |>
 stopifnot(nrow(tfr_df) == 65, nrow(tlb_df) == 65)
 
 # Create cleaned tsibbles
-tfr_ts <- tfr_df |>
-	mutate(Year = yearmonth(paste0(Year, "-01"))) |>
+tfr_tsb <- tfr_df |>
+	mutate(Year = as.integer(Year)) |>
 	as_tsibble(index = Year) |>
-	select(Year, Value) |>
-	rename(TFR = Value)
+	select(Year, TFR = Value)
 	
-tlb_ts <- tlb_df |>
-	mutate(Year = yearmonth(paste0(Year, "-01"))) |>
+tlb_tsb <- tlb_df |>
+	mutate(Year = as.integer(Year)) |>
 	as_tsibble(index = Year) |>
-	select(Year, Value) |>
-	rename(TLB = Value)
+	select(Year, TLB = Value)
 
 # Split tsibble for training & testing
-tfr_train <- tfr_ts |> filter(Year < yearmonth("2012-01"))
-tlb_train <- tlb_ts |> filter(Year < yearmonth("2012-01"))
+tfr_train <- tfr_tsb |> filter(as.numeric(Year) <= 2012)
+tlb_train <- tlb_tsb |> filter(as.numeric(Year) <= 2012)
 
-tfr_test <- tfr_ts |> filter(Year >= yearmonth("2013-01"))
-tlb_test <- tlb_ts |> filter(Year >= yearmonth("2013-01"))
+tfr_test <- tfr_tsb |> filter(as.numeric(Year) >= 2013)
+tlb_test <- tlb_tsb |> filter(as.numeric(Year) >= 2013)
 ```
+
+```{r figure1, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3.2, fig.width=8, out.width="100%"}
+wide_sample <- data.frame(
+	DataSeries = c("Total Fertility Rate (TFR)", "Total Live-Births (TLB)"),
+	'1960' = c(5.76, 61775),
+	'1961' = c(5.45, 62157),
+	'...' = c("...", "..."),
+	check.names = FALSE
+)
+
+long_sample <- data.frame(
+	Series = c(
+		"Total Fertility Rate (TFR)", "Total Fertility Rate (TFR)",
+		"Total Live-Births", "Total Live-Births"
+	),
+	Year = c(1960, 1961, 1960, 1961),
+	Value = c(5.76, 5.45, 61775, 62157)
+)
+
+wide_plot <- ggplot() +
+	theme_void() + 
+	annotate("text", x = 0, y = 0.9, label = "Wide format (raw CSV)", fontface = "bold", hjust = 0) +
+	annotate("label", x = 0, y = 0.65, label = "DataSeries | 1960 | 1961 | ... | 2024\nTFR row\nTLB row",
+	size = 3.2, label.size = 0.25, hjust = 0) +
+	xlim(-0.1, 1) +
+	ylim(0, 1.5)
+
+arrow_plot <- ggplot() +
+	theme_void() +
+	annotate("text", x = 0.5, y = 0.65, label = "pivot_longer()\n+\nfilter()\n+\narrange()", fontface = "italic", color = "grey35") +
+	xlim(0, 1) +
+	ylim(0, 1.5)
+
+long_plot <- ggplot() +
+	theme_void() +
+	annotate("text", x = 0, y = 0.95, label = "Long format (processed)", fontface = "bold", hjust = 0) +
+	annotate("label", x = 0, y = 0.65, label = "Series | Year | Value\nTFR | 1960 | 5.76\nTFR | 1961 | 5.45\nTLB | 1960 | 61775\nTLB | 1961 | 62157",
+	size = 3.2, label.size = 0.25, hjust = 0) +
+	xlim(-0.1, 1) +
+	ylim(0, 1.5)
+
+(wide_plot | arrow_plot | long_plot) + plot_layout(widths = c(5, 5, 5))
+```
+
+```{r window_one, echo=FALSE}
+tfr_ts <- ts(tfr_tsb$TFR, start = 1960, frequency = 1)
+tlb_ts <- ts(tlb_tsb$TLB, start = 1960, frequency = 1)
+
+tfr_train_ts <- window(tfr_ts, end = 2012)
+tlb_train_ts <- window(tlb_ts, end = 2012)
+```
+
+# Data Quality & Summary
+```{r summary, echo=FALSE}
+summary_table <- tibble(
+	Statistic = c("Min", "Q1", "Median", "Mean", "Q3", "Max", "NAs"),
+	TFR = c(
+		min(tfr_tsb$TFR, na.rm = TRUE), quantile(tfr_tsb$TFR, .25, na.rm = TRUE),
+		median(tfr_tsb$TFR, na.rm = TRUE), mean(tfr_tsb$TFR, na.rm = TRUE),
+		quantile(tfr_tsb$TFR, .75, na.rm = TRUE), max(tfr_tsb$TFR, na.rm = TRUE),
+		sum(is.na(tfr_tsb$TFR))
+	),
+	TLB = c(
+		min(tlb_tsb$TLB, na.rm = TRUE), quantile(tlb_tsb$TLB, .25, na.rm = TRUE),
+		median(tlb_tsb$TLB, na.rm = TRUE), mean(tlb_tsb$TLB, na.rm = TRUE),
+		quantile(tlb_tsb$TLB, .75, na.rm = TRUE), max(tlb_tsb$TLB, na.rm = TRUE),
+		sum(is.na(tlb_tsb$TLB))
+	)
+)
+
+knitr::kable(summary_table, digits = 2, caption = "Summary statistics for TFR and TLB (1960-2024)")
+```
+
+---
+
+# Time Series Plots
+
+Below, the dashed vertical line marks the train-test split at 2012.
+
+```{r plot-tfr, echo=FALSE, fig.height=5, fig.width=4, out.width="60%"}
+autoplot(tfr_tsb, TFR) +
+	geom_vline(xintercept = 2012, linetype = "dashed", colour = "grey50") +
+	annotate("text", x = 2013, y = max(tfr_tsb$TFR) * 0.95, label = "Test period ->", hjust = 0, size = 3.5, colour = "grey40") + labs(
+		title = "Singapore Total Fertility Rate (1960-2024)",
+		x = "Year",
+		y = "TFR"
+	) + theme_minimal()
+```
+
+```{r plot-tlb, echo=FALSE, fig.height=5, fig.width=4, out.width="60%"}
+autoplot(tlb_tsb, TLB) +
+	geom_vline(xintercept = 2012, linetype = "dashed", colour = "grey50") +
+	annotate("text", x = 2013, y = max(tlb_tsb$TLB) * 0.95,
+	label = "Test period ->", hjust = 0, size = 3.5, colour = "grey40") + labs(
+		title = "Singapore Total Live Births (1960-2024)",
+		x = "Year",
+		y = "Live Births"
+	) + theme_minimal()
+```
+
+# Temporal Feature Evaluation
+
+## Log Transformation Assessment
+
+```{r log-transform, echo=FALSE, fig.width=6, fig.height=4.5}
+par(mfrow = c(2, 2), mar = c(4, 4, 2.5, 1))
+plot(tfr_ts, main = "TFR - Raw", ylab = "TFR")
+plot(log(tfr_ts), main = "TFR - Log", ylab = "log(TFR)")
+plot(tlb_ts, main = "TLB - Raw", ylab = "Live Births")
+plot(log(tlb_ts), main = "TLB - Log", ylab = "log(TLB)")
+
+par(mfrow = c(1, 1))
+```
+
+\newpage
+# Stationarity Testing
+
+## Raw Series
+
+```{r stationarity-raw, echo=FALSE}
+adf_tfr <- adf.test(tfr_train_ts)
+kpss_tfr <- kpss.test(tfr_train_ts)
+
+adf_tlb <- adf.test(tlb_train_ts)
+kpss_tlb <- kpss.test(tlb_train_ts)
+
+stationarity_raw <- tibble(
+	Series = c("TFR", "TLB"),
+	`ADF p-value` = c(adf_tfr$p.value, adf_tlb$p.value),
+	`KPSS p-value` = c(kpss_tfr$p.value, kpss_tlb$p.value)
+)
+
+knitr::kable(stationarity_raw, digits = 4,
+	caption = "Stationarity tests - raw training series (1960-2012)")
+```
+
+## First Difference Series
+
+```{r stationarity-diff, echo=FALSE}
+adf_tfr_d <- adf.test(diff(tfr_train_ts))
+kpss_tfr_d <- kpss.test(diff(tfr_train_ts))
+
+adf_tlb_d <- adf.test(diff(tlb_train_ts))
+kpss_tlb_d <- kpss.test(diff(tlb_train_ts))
+
+stationarity_diff <- tibble(
+	Series = c("$\\Delta$TFR", "$\\Delta$TLB"),
+	`ADF p-value` = c(adf_tfr_d$p.value, adf_tlb_d$p.value),
+	`KPSS p-value` = c(kpss_tfr_d$p.value, kpss_tlb_d$p.value)
+)
+
+knitr::kable(stationarity_diff, digits = 4,
+	escape = FALSE,
+	caption = "Stationarity tests - first-differenced training series")
+```
+
+\newpage
+
+# ACF & PACF Analysis
+
+```{r acf-pacf-raw, echo=FALSE, fig.width = 6, fig.height = 4.5}
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+
+Acf(tfr_train_ts, main = "TFR - ACF")
+Pacf(tfr_train_ts, main = "TFR - PACF")
+Acf(tlb_train_ts, main = "TLB - ACF")
+Pacf(tlb_train_ts, main = "TLB - PACF")
+
+par(mfrow = c(1, 1))
+```
+
+```{r acf-pacf-diff, echo=FALSE, fig.width = 6, fig.height = 4.5}
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+
+Acf(diff(tfr_train_ts), main = expression(Delta * TFR ~ "- ACF"))
+Pacf(diff(tfr_train_ts), main = expression(Delta * TFR ~ "- PACF"))
+Acf(diff(tlb_train_ts), main = expression(Delta * TFR ~ "- ACF"))
+Pacf(diff(tlb_train_ts), main = expression(Delta * TFR ~ "- PACF"))
+
+par(mfrow = c(1, 1))
+```
+
+# Decomposition
+```{r decompose-tfr, echo=FALSE, fig.width=7, fig.height=5}
+tfr_trend <- stats::filter(tfr_train_ts, filter = rep(1/5, 5), sides = 2)
+
+plot(tfr_train_ts, main = "TFR - Trend (5-year MA)", ylab = "TFR", col = "grey60")
+lines(tfr_trend, col = "steelblue", lwd = 2)
+```
+
+```{r decompose-tlb, echo=FALSE, fig.width=7, fig.height=5}
+tlb_trend <- stats::filter(tlb_train_ts, filter = rep(1/5, 5), sides = 2)
+
+plot(tlb_train_ts, main = "TLB - Trend (5-year MA)", ylab = "TLB", col = "grey60")
+lines(tlb_trend, col = "steelblue", lwd = 2)
+```
+
+# Candidate Model Fitting
+
+## TFR - Candidate Model
+
+```{r model-tfr, echo=FALSE, fig.width=6, fig.height=5}
+tfr_model1 <- Arima(tfr_train_ts, order = c(0, 0, 0)) # TBD
+summary(tfr_model1)
+```
+
+```{r diag-tfr, echo=FALSE, fig.width=6, fig.height=5}
+checkresiduals(tfr_model1)
+```
+
+\newpage
+## TLB - Candidate Model
+
+```{r model-tlb, echo=FALSE, fig.width=6, fig.height=5}
+tlb_model1 <- Arima(tlb_train_ts, order = c(0, 0, 0)) # TBD
+summary(tlb_model1)
+```
+
+```{r diag-tlb, echo=FALSE, fig.width=6, fig.height=5}
+checkresiduals(tlb_model1)
+```
+
+---
