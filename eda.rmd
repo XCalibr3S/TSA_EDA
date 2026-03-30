@@ -389,4 +389,6 @@ Line plots are indicative of potential exponential decay (log-TLB linearises tre
 2. Do ARIMA/ETS models trained on the 1960-2012 slice accurately backcast 2013-2024 trends?
 3. How do age-shifts and ethic gaps explain < 1.0 TFR?
 
+# Report GitHub Repo
+https://github.com/XCalibr3S/TSA_EDA.git 
 <!-- Assignment is now overdue; will complete and display in Final Report. Most of my time was spent fighting with R Markdown :( -->
