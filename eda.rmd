@@ -90,7 +90,7 @@ tfr_test <- tfr_tsb |> filter(as.numeric(Year) >= 2013)
 tlb_test <- tlb_tsb |> filter(as.numeric(Year) >= 2013)
 ```
 
-```{r figure1, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3.2, fig.width=8, out.width="100%"}
+```{r data-comp, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3.2, fig.width=8, out.width="100%"}
 wide_sample <- data.frame(
 	DataSeries = c("Total Fertility Rate (TFR)", "Total Live-Births (TLB)"),
 	'1960' = c(5.76, 61775),
@@ -161,8 +161,6 @@ summary_table <- tibble(
 
 knitr::kable(summary_table, digits = 2, caption = "Summary statistics for TFR and TLB (1960-2024)")
 ```
-
----
 
 # Time Series Plots
 
@@ -265,8 +263,8 @@ par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
 
 Acf(diff(tfr_train_ts), main = expression(Delta * TFR ~ "- ACF"))
 Pacf(diff(tfr_train_ts), main = expression(Delta * TFR ~ "- PACF"))
-Acf(diff(tlb_train_ts), main = expression(Delta * TFR ~ "- ACF"))
-Pacf(diff(tlb_train_ts), main = expression(Delta * TFR ~ "- PACF"))
+Acf(diff(tlb_train_ts), main = expression(Delta * TLB ~ "- ACF"))
+Pacf(diff(tlb_train_ts), main = expression(Delta * TLB ~ "- PACF"))
 
 par(mfrow = c(1, 1))
 ```
@@ -290,25 +288,95 @@ lines(tlb_trend, col = "steelblue", lwd = 2)
 
 ## TFR - Candidate Model
 
-```{r model-tfr, echo=FALSE, fig.width=6, fig.height=5}
+```{r model-tfr, echo=FALSE, fig.width=6, fig.height=5, results='hide'}
 tfr_model1 <- Arima(tfr_train_ts, order = c(0, 0, 0)) # TBD
-summary(tfr_model1)
 ```
 
-```{r diag-tfr, echo=FALSE, fig.width=6, fig.height=5}
+```{r model-tfr-results, echo=FALSE}
+lb_tfr <- Box.test(residuals(tfr_model1), lag = 10, type = "Ljung-Box", fitdf = 0)
+
+knitr::kable(
+	accuracy(tfr_model1) |> as.data.frame(),
+	digits = 4, caption = "TFR training set error measures"
+)
+
+knitr::kable(
+	tibble(
+		'Q*' = lb_tfr$statistic,
+		df = lb_tfr$parameter,
+		'p-value' = lb_tfr$p.value
+	), digits = 4, caption = "TFR Ljung-Box test on residuals (lag = 10)"
+)
+```
+
+```{r diag-tfr, echo=FALSE, fig.width=6, fig.height=5, results='hide'}
 checkresiduals(tfr_model1)
 ```
 
 \newpage
 ## TLB - Candidate Model
 
-```{r model-tlb, echo=FALSE, fig.width=6, fig.height=5}
+```{r model-tlb, echo=FALSE, fig.width=6, fig.height=5, results='hide'}
 tlb_model1 <- Arima(tlb_train_ts, order = c(0, 0, 0)) # TBD
-summary(tlb_model1)
 ```
 
-```{r diag-tlb, echo=FALSE, fig.width=6, fig.height=5}
+```{r model-tlb-results, echo=FALSE}
+lb_tlb <- Box.test(residuals(tlb_model1), lag = 10, type = "Ljung-Box", fitdf = 0)
+
+knitr::kable(
+	accuracy(tlb_model1) |> as.data.frame(),
+	digits = 4, caption = "TLB training set error measures"
+)
+
+knitr::kable(
+	tibble(
+		'Q*' = lb_tlb$statistic,
+		df = lb_tlb$parameter,
+		'p-value' = lb_tlb$p.value
+	), digits = 4, caption = "TLB Ljung-Box test on residuals (lag = 10)"
+)
+```
+
+```{r diag-tlb, echo=FALSE, fig.width=6, fig.height=5, results='hide'}
 checkresiduals(tlb_model1)
 ```
 
----
+# Forecasting Model & Assessment
+```{r forecasting, echo=FALSE, fig.height=6, fig.width=6}
+tfr_fc <- forecast(tfr_model1, h = 12)
+tlb_fc <- forecast(tlb_model1, h = 12)
+
+# TFR Forecasting
+autoplot(tfr_fc) +
+	autolayer(tfr_test, series = "Actual", colour = "red") +
+	labs(
+		title = "TFR Forecast (2013-2024) vs Actual",
+		x = "Year", y = "TFR"
+	) +
+	theme_minimal()
+
+# TLB Forecasting
+autoplot(tlb_fc) +
+	autolayer(tlb_test, series = "Actual", colour = "red") +
+	labs(
+		title = "TLB Forecast (2013-2024) vs Actual",
+		x = "Year", y = "TLB"
+	) +
+	theme_minimal()
+
+tfr_test_ts <- ts(tfr_test$TFR, start = 2013, frequency = 1)
+tlb_test_ts <- ts(tlb_test$TLB, start = 2013, frequency = 1)
+
+# Accuracy measurement
+acc_tfr <- accuracy(tfr_fc, tfr_test_ts)
+acc_tlb <- accuracy(tlb_fc, tlb_test_ts)
+
+knitr::kable(acc_tfr, digits = 4, caption = "TFR forecast accuracy")
+knitr::kable(acc_tlb, digits = 4, caption = "TLB forecast accuracy")
+```
+
+# Key Temporal Insights
+The figures throughout this EDA show a sharp decline in both TLB and TFR post-1960s, which is indicative of Singapore's rapid demographic transformation. TLB drops from peaks around 1965 (~60,000 births) among the early baby booms, stabilising below 40,000 by the 2000s; TFR plummets from >4.5 in 1960 to a remaining fifth of this figure, with its notable troughs in the 1970s (during the presence of their two-limit policy) and 2020s (during the COVID-19 pandemic). Visual patterns indicate strong negative trends, potential cyclical behaviour, and increased volatility post-2010.
+
+# Data Quality
+The given Singapore Census CSV data is objectively clean; no NAs present, so no discrete approximations are made. However, a limitation is the lack of monthly granularity for our seasonality tests. This could be an inviting avenue to investigate, if present.
