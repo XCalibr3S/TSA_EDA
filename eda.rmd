@@ -1,16 +1,16 @@
 ---
 title: "Exploratory Data Analysis | Singapore Total Fertility Rate & Total Live Births"
 author: "Hunter Holt"
-date: "`r sys.Date()`"
+date: "`r Sys.Date()`"
 output:
-	pdf_document:
-		toc = TRUE,
-		toc_depth = 3,
-		number_sections = TRUE,
-		df_print = tibble,
-		theme = flatly
-		highlight = tango,
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    df_print: tibble
+    highlight: tango
 ---
+
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(
 	echo		= TRUE,
@@ -31,10 +31,11 @@ This exploratory data analysis (EDA) investigates the temporal features of two s
 
 The dates for the SingaporeCensus.csv reference dataset span from 1960 to 2024, sourced from the Singapore Department of Statistics. The objective is to recognise and analyse long-run trends, assess stationarity, and identify candidate time series models for a proposed training period 1960 - 2012 and a proposed forecasting performance assessed over the remaining 2013 - 2024 period.
 
-```{r libs, include=FALSE)
+```{r libs, include=FALSE}
 library(tidyverse)	# for data wrangling & ggplot2
 library(tseries)	# for adf & kpss tests
 library(forecast)	# for acf/pacf, forecast & checkresiduals
+library(tsibble)	# for tsibble data structure
 ```
 
 ---
@@ -43,15 +44,15 @@ library(forecast)	# for acf/pacf, forecast & checkresiduals
 
 The given data is in a CSV file, which is optimal for computation. However, the data is in a 'wide format', where its temporal variables (i.e. years) are given as columns instead of years. We transpose the data and extract the two data columns we are interested in.
 
-```{r clean-load}
-raw <- read.csv("SingaporeCensus.csv", check.names = FALSE)
+```{r clean-load-object, include=FALSE}
+raw <- read.csv("SingaporeCensus.csv", check.names = FALSE, na.strings = c("", "NA", "na"))
 
 # Tranpose
 long <- raw |>
-	rename(Series = DataSeries) |>
-	pivot_longer(cols = -Series, names_to = "Year", values_to = "Value") |>
-	mutate(Year = as.integer(Year)) |>
-	filter(Year >= 1960, Year <= 2024)
+    rename(Series = DataSeries) |>
+    pivot_longer(cols = -Series, names_to = "Year", values_to = "Value", 
+                 names_transform = list(Year = as.integer)) |>
+    filter(Year >= 1960, Year <= 2024)
 	
 # Extract TFR and TLB data
 tfr_df <- long |>
@@ -63,4 +64,24 @@ tlb_df <- long |>
 	
 # Verify 65 years covered per dataset
 stopifnot(nrow(tfr_df) == 65, nrow(tlb_df) == 65)
+
+# Create cleaned tsibbles
+tfr_ts <- tfr_df |>
+	mutate(Year = yearmonth(paste0(Year, "-01"))) |>
+	as_tsibble(index = Year) |>
+	select(Year, Value) |>
+	rename(TFR = Value)
+	
+tlb_ts <- tlb_df |>
+	mutate(Year = yearmonth(paste0(Year, "-01"))) |>
+	as_tsibble(index = Year) |>
+	select(Year, Value) |>
+	rename(TLB = Value)
+
+# Split tsibble for training & testing
+tfr_train <- tfr_ts |> filter(Year < yearmonth("2012-01"))
+tlb_train <- tlb_ts |> filter(Year < yearmonth("2012-01"))
+
+tfr_test <- tfr_ts |> filter(Year >= yearmonth("2013-01"))
+tlb_test <- tlb_ts |> filter(Year >= yearmonth("2013-01"))
 ```
