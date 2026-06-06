@@ -124,48 +124,17 @@ The raw comma-separated-value file is stored in wide format, i.e. the years 1960
 
 For forecasting evaluation, the full series is partitioned into a training windows of $n = 53$ observations (from 1960 to 2012) and a complementary windows of $h = 12$ observations (2013 to 2024).
 
-```{r data-comp, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3.2, fig.width=8, out.width="100%"}
-wide_sample <- data.frame(
-	DataSeries = c("Total Fertility Rate (TFR)", "Total Live-Births (TLB)"),
-	'1960' = c(5.76, 61775),
-	'1961' = c(5.45, 62157),
-	'...' = c("...", "..."),
-	check.names = FALSE
-)
-
-long_sample <- data.frame(
-	Series = c(
-		"Total Fertility Rate (TFR)", "Total Fertility Rate (TFR)",
-		"Total Live-Births", "Total Live-Births"
-	),
-	Year = c(1960, 1961, 1960, 1961),
-	Value = c(5.76, 5.45, 61775, 62157)
-)
-
-wide_plot <- ggplot() +
-	theme_void() + 
-	annotate("text", x = 0, y = 0.9, label = "Wide format (raw CSV)", fontface = "bold", hjust = 0) +
-	annotate("label", x = 0, y = 0.65, label = "DataSeries | 1960 | 1961 | ... | 2024\nTFR row\nTLB row",
-	size = 3.2, label.size = 0.25, hjust = 0) +
-	xlim(-0.1, 1) +
-	ylim(0, 1.5)
-
-arrow_plot <- ggplot() +
-	theme_void() +
-	annotate("text", x = 0.5, y = 0.65, label = "pivot_longer()\n+\nfilter()\n+\narrange()", fontface = "italic", color = "grey35") +
-	xlim(0, 1) +
-	ylim(0, 1.5)
-
-long_plot <- ggplot() +
-	theme_void() +
-	annotate("text", x = 0, y = 0.95, label = "Long format (processed)", fontface = "bold", hjust = 0) +
-	annotate("label", x = 0, y = 0.65, label = "Series | Year | Value\nTFR | 1960 | 5.76\nTFR | 1961 | 5.45\nTLB | 1960 | 61775\nTLB | 1961 | 62157",
-	size = 3.2, label.size = 0.25, hjust = 0) +
-	xlim(-0.1, 1) +
-	ylim(0, 1.5)
-
-(wide_plot | arrow_plot | long_plot) + plot_layout(widths = c(5, 5, 5))
+```{r summary-table}
+summary_tbl <- tibble(
+                      Statistic = c("Min", "Q1", "Median", "Mean", "Q3", "Max", "NAs"),
+                      TFR = c(min(tfr_tsb), quantile(tfr_tsb, .25), median(tfr_tsb), mean(tfr_tsb), quantile(tfr_tsb, .75), max(tfr_tsb), sum(is.na(tfr_tsb)))
+                      TLB = c(min(tlb_tsb), quamtile(tlb_tsb, .25), median(tlb_tsb), mean(tlb_tsb), quamtile(tlb_tsb, .75), max(tlb_tsb), sum(is.na(tlb_tsb)))
+                      )
+kable(summary_tbl, digits = 2, booktabs = TRUE, caption = "Summary statistics for TFR and TLB (1960--2024).") |>
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
 ```
+
+TFR ranges from an initial post-war high of 5.76, to a final minimum of 0.97, which is much lower than the 'replacement threshold' of 2.1 [@Espenshade2003]. The considerable difference between the mean of 2.06 and median of 1.62 is reflective of a strongly right-skewed distribution produced by the pre-transitional years.
 
 ```{r window_one, echo=FALSE}
 tfr_ts <- ts(tfr_tsb$TFR, start = 1960, frequency = 1)
