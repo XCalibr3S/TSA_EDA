@@ -1,26 +1,59 @@
 ---
-title: "Exploratory Data Analysis - Singapore Total Fertility Rate & Total Live Births"
+title: "Time Series Analysis - Singapore Total Fertility Rate\ 
+  and Total Live Births"
 author: "Hunter Holt"
-date: "`r Sys.Date()`"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
   pdf_document:
     toc: false
     toc_depth: 3
     number_sections: false
-    df_print: tibble
+    df_print: kable
     highlight: tango
+    latex_engine: pdflatex
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \usepackage{booktabs}
+  - \usepackage{float}
+  - \usepackage{ragged2e}
+  - \usepackage{parskip}
+  - \usepackage{setspace}
+  - \usepackage{titlesec}
+  - \floatplacement{figure}{H}
+  - \floatplacement{table}{H}
+  - \setlength{\parindent}{0pt}
+  - \setlength{\parskip}{6pt}
+  - \titleformat{\section}{\normalfont\bfseries}{\thesection}{1em}{}
+  - \titleformat{\subsection}{\normalfont\bfseries}{\thesubsection}{1em}{}
+  - \titlespacing*{\section}{0pt}{12pt}{4pt}
+  - \titlespacing*{\subsection}{0pt}{8pt}{2pt}
+  - \renewcommand{\arraystretch}{1.15}
+bibliography: references.bib
 ---
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(
-	echo		= TRUE,
+	echo		= FALSE,
 	warning	= FALSE,
 	message		= FALSE,
 	fig.align	= "center",
-	fig.width 	= 9,
-	fig.height	= 5
+	fig.pos = "H",
+  out.width = "85%"
 )
 ```
+
+
+```{r libs, include=FALSE}
+library(tidyverse)	# for data wrangling & ggplot2
+library(tseries)	# for adf & kpss tests
+library(forecast)	# for acf/pacf, forecast & checkresiduals
+library(tsibble)	# for tsibble data structure
+library(knitr)
+library(kableExtra)
+```
+
+---
 
 # Introduction
 
@@ -30,19 +63,6 @@ This exploratory data analysis (EDA) investigates the temporal features of two s
 - **Total Live Births (TLB):** the total number of live births recognised per year.
 
 The dates for the SingaporeCensus.csv reference dataset span from 1960 to 2024, sourced from the Singapore Department of Statistics. The objective is to recognise and analyse long-run trends, assess stationarity, and identify candidate time series models for a proposed training period 1960 - 2012 and a proposed forecasting performance assessed over the remaining 2013 - 2024 period.
-
-```{r libs, include=FALSE}
-library(tidyverse)	# for data wrangling & ggplot2
-library(tseries)	# for adf & kpss tests
-library(forecast)	# for acf/pacf, forecast & checkresiduals
-library(feasts)
-library(tsibble)	# for tsibble data structure
-library(patchwork)
-library(ggplot2)
-library(grid) 		# for figure structures
-```
-
----
 
 # Data Loading & Reshaping
 
@@ -391,4 +411,4 @@ Line plots are indicative of potential exponential decay (log-TLB linearises tre
 
 # Report GitHub Repo
 https://github.com/XCalibr3S/TSA_EDA.git 
-<!-- Assignment is now overdue; will complete and display in Final Report. Most of my time was spent fighting with R Markdown :( -->
+
