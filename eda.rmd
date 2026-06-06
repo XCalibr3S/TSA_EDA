@@ -55,6 +55,20 @@ library(kableExtra)
 
 ---
 
+\begin{center}
+\large\textbf{Abstract}
+\end{center}
+
+Over the course of the last century, Singapore's demographic transition remains as one of the most rapid ever recorded, with the Total Fertility Rate (TFR) declining from 5.76 in 1960 to less than 1.0 by 2024. This paper features a complete time series analysis of two interrelated population metrics: TFR and Total Live Births (TLB). These are scraped from the Singapore Department of Statistics' annual data, ranging from 1968 to 2024. After an established Data Analysis Lifecycle, paired with the Box-Jenkins identification cycle, a log-differencing transformation is required to achieve stationarity. This is also furthermore confirmed by ADF and KPSS tests. Autocorrelation (ACF) and partial autocorrelation (ACF) functions applied to our stationary series prompts for an ARIMA$(p, 1, q)$ candidate model(s) fitted with a logarithmic Box-Cox transform. Model selection verification using AICc identifies the specification with best fit for each series; residual diagnostics aim to replicate white noise behaviour. Out-of-sample forecasts over a subsample of 2013--2024 are evaluated against observed values, with performance assessed via RMSE, MAE, MAPE, and Theil's U. The results post-evaluation confirm the particular difficulty of accurately forecasting sub-replacement fertility prediction mapping, likely due to structural policy interventions within Singapore and/or the impact of COVID-19. This motivates additional extension processes including ARIMA-GARCH and state-space modelling.
+
+*Keywords:* Total Fertility Rate; Total Live Births; ARIMA; Box-Jenkins; Stationarity; Singapore
+
+\vspace{10pt}
+\hrule
+\vspace{8pt}
+
+---
+
 # Introduction
 
 This exploratory data analysis (EDA) investigates the temporal features of two significant population indicators for Singapore:
