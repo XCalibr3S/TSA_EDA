@@ -71,27 +71,30 @@ Over the course of the last century, Singapore's demographic transition remains 
 
 # Introduction
 
-This exploratory data analysis (EDA) investigates the temporal features of two significant population indicators for Singapore:
-
-- **Total Fertility Rate (TFR):** the average number of children a woman would have over her lifetime at current age-specific fertility rates;
-- **Total Live Births (TLB):** the total number of live births recognised per year.
-
-The dates for the SingaporeCensus.csv reference dataset span from 1960 to 2024, sourced from the Singapore Department of Statistics. The objective is to recognise and analyse long-run trends, assess stationarity, and identify candidate time series models for a proposed training period 1960 - 2012 and a proposed forecasting performance assessed over the remaining 2013 - 2024 period.
+- Demographic transition
+- Discuss variables
+- Discuss significant change in variables, and why. EDA
+- Introduce research questions: 'which policy interventions over 1960--2024 justify the significant structural deviations in TFR and TLB?', 'can ARIMA models trained on the 1960--2012 window project the 2013--2024 period?', 'what (and how do) demographic mechanisms account for the recent significant drop in TFR?'
+- State IED Box-Jenkins cycle as diagnostic tool
 
 # Data Loading & Reshaping
 
-The given data is in a CSV file, which is optimal for computation. However, the data is in a 'wide format', where its temporal variables (i.e. years) are given as columns instead of years. We transpose the data and extract the two data columns we are interested in.
-
-Below is the transposition framework of the data.
-
-```{r clean-load-object, echo=FALSE}
-raw <- read.csv("SingaporeCensus.csv", check.names = FALSE, na.strings = c("", "NA", "na"))
+```{r load-data}
+raw <- read.csv("SingaporeCensus.csv", 
+                check.names = FALSE, 
+                na.strings = c("", 
+                               "NA", 
+                               "na")
+)
 
 # Transpose
 long <- raw |>
     rename(Series = DataSeries) |>
-    pivot_longer(cols = -Series, names_to = "Year", values_to = "Value", 
-                 names_transform = list(Year = as.integer)) |>
+    pivot_longer(cols = -Series,
+                 names_to = "Year",
+                 values_to = "Value", 
+                 names_transform = list(Year = as.integer)
+                 ) |>
     filter(Year >= 1960, Year <= 2024)
 	
 # Extract TFR and TLB data
@@ -106,23 +109,20 @@ tlb_df <- long |>
 stopifnot(nrow(tfr_df) == 65, nrow(tlb_df) == 65)
 
 # Create cleaned tsibbles
-tfr_tsb <- tfr_df |>
-	mutate(Year = as.integer(Year)) |>
-	as_tsibble(index = Year) |>
-	select(Year, TFR = Value)
-	
-tlb_tsb <- tlb_df |>
-	mutate(Year = as.integer(Year)) |>
-	as_tsibble(index = Year) |>
-	select(Year, TLB = Value)
+tfr_tsb <- ts(tfr_df$Value, start = 1960, frequency = 1)
+tlb_tsb <- ts(tlb_df$Value, start = 1960, frequency = 1)
 
 # Split tsibble for training & testing
-tfr_train <- tfr_tsb |> filter(as.numeric(Year) <= 2012)
-tlb_train <- tlb_tsb |> filter(as.numeric(Year) <= 2012)
-
-tfr_test <- tfr_tsb |> filter(as.numeric(Year) >= 2013)
-tlb_test <- tlb_tsb |> filter(as.numeric(Year) >= 2013)
+tfr_train <- window(tfr_tsb, end = 2012)
+tfr_test <- window(tfr_tsb, start = 2013)
+tlb_train <- window(tlb_tsb, end = 2012)
+tlb_train <- window(tlb_tsb, start = 2013)
 ```
+
+The data used throughout this report are sourced from *SingaporeCensus.csv*, a population census published by the Singapore Department of Statistics.
+The raw comma-separated-value file is stored in wide format, i.e. the years 1960--2024 are column headers. Two rows are extracted -- one for TFR and one for TLB -- and reshaped to long format by using `pivot_longer()`. The resulting cleaned dataset contains 65 annual observations per series with no missing values.
+
+For forecasting evaluation, the full series is partitioned into a training windows of $n = 53$ observations (from 1960 to 2012) and a complementary windows of $h = 12$ observations (2013 to 2024).
 
 ```{r data-comp, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3.2, fig.width=8, out.width="100%"}
 wide_sample <- data.frame(
