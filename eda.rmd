@@ -67,7 +67,8 @@ Over the course of the last century, Singapore's demographic transition remains 
 \hrule
 \vspace{8pt}
 
----
+\newpage
+
 
 # 1 Introduction
 
@@ -76,6 +77,8 @@ Over the course of the last century, Singapore's demographic transition remains 
 - Discuss significant change in variables, and why. EDA
 - Introduce research questions: 'which policy interventions over 1960--2024 justify the significant structural deviations in TFR and TLB?', 'can ARIMA models trained on the 1960--2012 window project the 2013--2024 period?', 'what (and how do) demographic mechanisms account for the recent significant drop in TFR?'
 - State IED Box-Jenkins cycle as diagnostic tool
+
+\newpage
 
 # 2 Data
 
@@ -167,6 +170,9 @@ par(mfrow = c(1, 1))
 
 Figure 1 indicates two salient features shared by both series. For one, a strong uniform downward trend persists over the full sample, which immediately rules out non-transformative modelling approaches. For two, the variance of the fluctuations around the trend is considerably higher during earlier years (1960--1980) instead of during the sub-replacement period post-1985. This is indicative of a multiplicative error structure rather than an additive one, which prompts for a logarithmic variance stabilisation method.
 
+\newpage
+
+
 # 3 Context and Methodology
 
 ## 3.1 Transformation and Stationarity
@@ -214,13 +220,15 @@ $$
 
 and the **partial autocorrelation function** (PACF) $\alpha_k$ measures the linear dependence between $Y_t$ and $Y_{t-k}$ after eliminating the effect pf $Y_{t-1}, \ldots, Y_{t-k+1}$. The Box-Jenkins identification table is:
 
-\begin{table}
+\begin{center}
+\begin{tabular}{c|c|c}
 Model & Theoretical ACF & Theoretical PACF \\
 \hline
 AR$(p)$ & Geometric decay/oscillation & Cuts off after lag $p$ \\
 MA$(q)$ & Decays after lag $q$ & Geometric decay/oscillation \\
 ARMA$(p, q)$ & Decays after lag $q - p$ & Decays after lag $p - q$
-\end{table}
+\end{tabular}
+\end{center}
 
 Approximate 95\% bounds on the sample ACF/PACF are $\pm 1.96/\sqrt{n}$, where $n$ is the length of the differenced series.
 
@@ -252,7 +260,8 @@ $$
 
 where $e_t \hat{X}_t - X_t$. As mentioned, **Theil's U** compares model RMSE to that of the naive (that is, the random walk) forecast; $U < 1$ indicates the model outperforms the initial naive benchmark.
 
----
+\newpage
+
 
 # 4 Exploratory Analysis
 
@@ -336,6 +345,9 @@ Pacf(d_tlb, lag.max = 25, main = expression(Delta * log(TLB) ~ "--PACF"))
 
 par(mfrow = c(1, 1))
 ```
+
+\newpage
+
 
 # 5. Model Identification and Estimation
 
@@ -434,21 +446,84 @@ kable(
       ) |> kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
 ```
 
----
+# 6 Residual Diagnostics
 
-# Key Temporal Insights
-The figures throughout this EDA show a sharp decline in both TLB and TFR post-1960s, which is indicative of Singapore's rapid demographic transformation. TLB drops from peaks around 1965 (~60,000 births) among the early baby booms, stabilising below 40,000 by the 2000s; TFR plummets from >4.5 in 1960 to a remaining fifth of this figure, with its notable troughs in the 1970s (during the presence of their two-limit policy) and 2020s (during the COVID-19 pandemic). Visual patterns indicate strong negative trends, potential cyclical behaviour, and increased volatility post-2010.
+## 6.1 TFR Model
 
-# Data Quality
-The given Singapore Census CSV data is objectively clean; no NAs present, so no discrete approximations are made. However, a limitation is the lack of monthly granularity for our seasonality tests. This could be an inviting avenue to investigate, if present.
+```{r diag-tfr, fig.width=7.5, fig.height=5, fig.cap=paste0("Residual diagnostics for the selected TFR model (", tfr_best_name, ").")}
+checkresiduals(tfr_best, lag = 20)
+```
 
-# Key Visual & Test Insights
-Line plots are indicative of potential exponential decay (log-TLB linearises trend); differenced series highlight stationarity (expected ADF p<0.05 post-d=1). ACF shows high persistence (lag-1 ~ 0.9), weak cycles around 10-15 years (implementation of national policies, likely). In decomposition, trend is massive (~90% variance), with minimal seasonality in annuals (see Data Quality for relational limitations).
+```{r lb-tfr}
+tfr_fitdf <- sum(arimaorder(tfr_best)[c(1, 3)])
+lb_tfr <- Box.test(residuals(tfr_best), lag = 20, type = "Ljung-Box", fitdf = tfr_fitdf)
+kable(
+      tibble(Model = tfr_best_name, `Test lag` = 20L,
+             `fitdf` = tfr_fitdf, `Q*` = round(lb_tfr$statistic, 3),
+             df = lb_tfr$parameter, `p-value` = round(lb_tfr$p.value, 4)),
+      booktabs = TRUE,
+      caption = "Ljung-Box test on TFR model residuals; lag 20, fitdf $= p + q$."
+      ) |>
+kable_styling(latex_options = c("hold_position"), font_size = 10)
+```
 
-# Research Areas
-1. What policy interventions over this sample period best explain the TFR/TLB deviations from smooth decline trend?
-2. Do ARIMA/ETS models trained on the 1960-2012 slice accurately backcast 2013-2024 trends?
-3. How do age-shifts and ethic gaps explain < 1.0 TFR?
+A Ljung-Box $p$-value $> 0.05$ indicates no statistically significant residual autocorrelation in TFR up to lag 20, which supports the white-noise assumption needed for valid inference. The residual histogram (Figure 5, bottom right) should replicate a bell-shape for prediction intervals to be well-specified.
+
+## 6.2 TLB Model
+
+```{r diag-tlb, fig.width=7.5, fig.height=5, fig.cap=paste0("Residual diagnostics for the selected TLB model (", tlb_best_name, ").")}
+checkresiduals(tlb_best, lag = 20)
+```
+
+```{r lb-tlb}
+tlb_fitdf <- sum(arimaorder(tlb_best)[c(1, 3)])
+lb_tlb <- Box.test(residuals(tlb_best), lag = 20, type = "Ljung-Box", fitdf = tlb_fitdf)
+kable(
+      tibble(Model = tlb_best_name, `Test lag` = 20L,
+             `fitdf` = tlb_fitdf, `Q*` = round(lb_tlb$statistic, 3),
+             df = lb_tlb$parameter, `p-value` = round(lb_tlb$p.value, 4)),
+      booktabs = TRUE,
+      caption = "Ljung-Box test on TLB model residuals (lag 20, fitdf $= p + q$)."
+      ) |>
+kable_styling(latex_options = c("hold_position"), font_size = 10)
+```
+
+\newpage
+
+# 7 Forecasting
+
+## 7.1 Out-of-Sample Forecasts
+
+```{r fc-tfr, fig.width=7.5, fig.height=4.5, fig.cap=paste0("TFR forecast (2013--2024), ", tfr_best_name, ", with 80\\% and 95\\% prediction intervals; actual values in red.")}
+fc_tfr <- forecast(tfr_best, h = 12)
+autoplot(fc_tfr) +
+  autolayer(tfr_test, series = "Actual", colour = "red", size = 0.7) +
+  labs(title = NULL, x = "Year", y = "TFR", colour = NULL) +
+  theme_bw(base_size = 11) +
+  theme(legend.position = "bottom")
+```
+
+```{r fc-tlb, fig.width=7.5, fig.height=4.5, fig.cap=paste0("TLB forecast (2013--2024), ", tlb_best_name, ", with 80\\% and 95\\% prediction intervals; actual values in red.")}
+fc_tlb <- forecast(tlb_best, h = 12)
+autoplot(fc_tlb) +
+  autolayer(tlb_test, series = "Actual", colour = "red", size = 0.7) +
+  labs(title = NULL, x = "Year", y = "TLB", colour = NULL) +
+  theme_bw(base_size = 11) +
+  theme(legend.position = "bottom")
+```
+
+## 7.2 Forecasting Accuracy Evaluation
+
+```{r fc-accuracy}
+acc_tfr <- accuracy(fc_tfr, tfr_test)
+acc_tlb <- accuracy(fc_tlb, tlb_test)
+
+kable(acc_tfr, digits = 4, booktabs = TRUE, caption = paste("Forecast accuracy - TFR,", tfr_best_name, "(original scale).")) |>
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
+
+kable(acc_tlb, diits = 4, booktabs = TRUE, caption = paste("Forecast accuracy - TLB, ", tlb_best_name, "(original scale).")) |>
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
+```
 
 # Report GitHub Repo
 https://github.com/XCalibr3S/TSA_EDA.git 
