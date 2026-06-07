@@ -69,7 +69,7 @@ Over the course of the last century, Singapore's demographic transition remains 
 
 ---
 
-# Introduction
+# 1 Introduction
 
 - Demographic transition
 - Discuss variables
@@ -77,7 +77,9 @@ Over the course of the last century, Singapore's demographic transition remains 
 - Introduce research questions: 'which policy interventions over 1960--2024 justify the significant structural deviations in TFR and TLB?', 'can ARIMA models trained on the 1960--2012 window project the 2013--2024 period?', 'what (and how do) demographic mechanisms account for the recent significant drop in TFR?'
 - State IED Box-Jenkins cycle as diagnostic tool
 
-# Data Loading & Reshaping
+# 2 Data
+
+# 2.1 Data Sourcing and Structuring
 
 ```{r load-data}
 raw <- read.csv("SingaporeCensus.csv", 
@@ -124,6 +126,8 @@ The raw comma-separated-value file is stored in wide format, i.e. the years 1960
 
 For forecasting evaluation, the full series is partitioned into a training windows of $n = 53$ observations (from 1960 to 2012) and a complementary windows of $h = 12$ observations (2013 to 2024).
 
+# 2.2 Statistical Summary
+
 ```{r summary-table}
 summary_tbl <- tibble(
                       Statistic = c("Min", "Q1", "Median", "Mean", "Q3", "Max", "NAs"),
@@ -136,75 +140,136 @@ kable(summary_tbl, digits = 2, booktabs = TRUE, caption = "Summary statistics fo
 
 TFR ranges from an initial post-war high of 5.76, to a final minimum of 0.97, which is much lower than the 'replacement threshold' of 2.1 [@Espenshade2003]. The considerable difference between the mean of 2.06 and median of 1.62 is reflective of a strongly right-skewed distribution produced by the pre-transitional years.
 
-```{r window_one, echo=FALSE}
-tfr_ts <- ts(tfr_tsb$TFR, start = 1960, frequency = 1)
-tlb_ts <- ts(tlb_tsb$TLB, start = 1960, frequency = 1)
+# 2.3 Time Series Plots
 
-tfr_train_ts <- window(tfr_ts, end = 2012)
-tlb_train_ts <- window(tlb_ts, end = 2012)
+```{r ts-plots, fig.width=8.5, fig.height=3.8, fig.cap="TFR (left) and TLB (right), from 1960--2024. The dashed vertical line indicates the train-test data partitioning."}
+par(mfrow = c(1, 2), mar = c(4, 4.2, 2.5, 1), family = "serif")
+plot(tfr_tsb, 
+     main = "Total Fertility Rate", 
+     ylab = "TFR", xlab = "Year",
+     col = "black", lwd = 1.2, las = 1
+     )
+abline(v = 2012, 
+       lty = 2, 
+       col = "grey55"
+       )
+plot(tlb_tsb,
+     main = "Total Live Births",
+     ylab = "TLB", xlab = "Year",
+     col = "black", lwd = 1.2, las = 1
+     )
+abline(v = 2012,
+       lty = 2,
+       col = "grey55"
+       )
+par(mfrow = c(1, 1))
 ```
 
-# Data Quality & Summary
-```{r summary, echo=FALSE}
-summary_table <- tibble(
-	Statistic = c("Min", "Q1", "Median", "Mean", "Q3", "Max", "NAs"),
-	TFR = c(
-		min(tfr_tsb$TFR, na.rm = TRUE), quantile(tfr_tsb$TFR, .25, na.rm = TRUE),
-		median(tfr_tsb$TFR, na.rm = TRUE), mean(tfr_tsb$TFR, na.rm = TRUE),
-		quantile(tfr_tsb$TFR, .75, na.rm = TRUE), max(tfr_tsb$TFR, na.rm = TRUE),
-		sum(is.na(tfr_tsb$TFR))
-	),
-	TLB = c(
-		min(tlb_tsb$TLB, na.rm = TRUE), quantile(tlb_tsb$TLB, .25, na.rm = TRUE),
-		median(tlb_tsb$TLB, na.rm = TRUE), mean(tlb_tsb$TLB, na.rm = TRUE),
-		quantile(tlb_tsb$TLB, .75, na.rm = TRUE), max(tlb_tsb$TLB, na.rm = TRUE),
-		sum(is.na(tlb_tsb$TLB))
-	)
-)
+Figure 1 indicates two salient features shared by both series. For one, a strong uniform downward trend persists over the full sample, which immediately rules out non-transformative modelling approaches. For two, the variance of the fluctuations around the trend is considerably higher during earlier years (1960--1980) instead of during the sub-replacement period post-1985. This is indicative of a multiplicative error structure rather than an additive one, which prompts for a logarithmic variance stabilisation method.
 
-knitr::kable(summary_table, digits = 2, caption = "Summary statistics for TFR and TLB (1960-2024)")
-```
+# 3 Context and Methodology
 
-# Time Series Plots
+## 3.1 Transformation and Stationarity
 
-Below, the dashed vertical line marks the train-test split at 2012.
+A time series $\{X_t\}$ is said to be *weakly stationary* if its unconditional mean $\mu = E[X_t]$ is constant and its autocovariance function $\gamma(h) = \mathrm{Cov}(X_t, X_{t-h})$ depends only on lag $h$, rather than time $t$ [@BoxJenkins1970]. Both raw series are in violation of this condition; shown is a persistent downward trend (i.e. a non-constant mean) and heteroskedastic fluctuations (i.e. non-constant variance).
 
-```{r plot-tfr, echo=FALSE, fig.height=5, fig.width=4, out.width="60%"}
-autoplot(tfr_tsb, TFR) +
-	geom_vline(xintercept = 2012, linetype = "dashed", colour = "grey50") +
-	annotate("text", x = 2013, y = max(tfr_tsb$TFR) * 0.95, label = "Test period ->", hjust = 0, size = 3.5, colour = "grey40") + labs(
-		title = "Singapore Total Fertility Rate (1960-2024)",
-		x = "Year",
-		y = "TFR"
-	) + theme_minimal()
-```
+Since variance appears proportional to level, a logarithmic transformation $W_t = \log X_t$ is applied to stabilise variance. The log series retains a trend, prompting for a single first-difference to produce a stationary working series:
 
-```{r plot-tlb, echo=FALSE, fig.height=5, fig.width=4, out.width="60%"}
-autoplot(tlb_tsb, TLB) +
-	geom_vline(xintercept = 2012, linetype = "dashed", colour = "grey50") +
-	annotate("text", x = 2013, y = max(tlb_tsb$TLB) * 0.95,
-	label = "Test period ->", hjust = 0, size = 3.5, colour = "grey40") + labs(
-		title = "Singapore Total Live Births (1960-2024)",
-		x = "Year",
-		y = "Live Births"
-	) + theme_minimal()
-```
+$$
+Y_t = (1 - B)\log X_t = \log X_t - \log X_{t-1} = \log\!\left(\frac{X_t}{X_{t-1}}\right),
+$$
 
-# Temporal Feature Evaluation
+where $B$ is the backward shift operator ($BX_t = X_{t-1}$). In this context, $Y_t$ is interpreted as the log-annual growth rate of the series. Stationarity of $Y_t$ is assessed using two statistical tests:
 
-## Log Transformation Assessment
+- **Augmented Dickey-Fuller (ADF)** [@Dickney1979]: tests $H_0$ (unit root) against $H_1$ (stationary). A small $p$-value supports rejection of the unit-root null.
+- **KPSS** [@Kwiatkowski1992]: tests $H_0$: (trend-)stationary against $H_1$ (unit root). A large $p$-value (non-rejection) supports the stationarity hypothesis. 
 
-```{r log-transform, echo=FALSE, fig.width=6, fig.height=4.5}
-par(mfrow = c(2, 2), mar = c(4, 4, 2.5, 1))
-plot(tfr_ts, main = "TFR - Raw", ylab = "TFR")
-plot(log(tfr_ts), main = "TFR - Log", ylab = "log(TFR)")
-plot(tlb_ts, main = "TLB - Raw", ylab = "Live Births")
-plot(log(tlb_ts), main = "TLB - Log", ylab = "log(TLB)")
+Using both tests simultaneously ensures less ambiguity that individual tests can experience; due to low power or size distortion, for instance.
+
+## 3.2 ARIMA Model specification
+
+An ARIMA$(p, d, q)$ model applied to the log-transformed series $\log X_t$ (so that $d = 1$ acts on the log series) is:
+
+$$
+\phi(B)(1 - B)\log X_t = c + \theta(B)\varepsilon_t, \qquad \varepsilon_t \sim \mathrm{WN}(0, \sigma^2),
+$$
+
+where $\mathrm{WN}(0, \sigma^2)$ denotes a white-noise sequence (an uncorrelated process with zero mean and constant variance $\sigma^2$). The AR and MA polynomials are:
+
+$$
+\phi(B) = 1 - \phi_1 B - \phi_2 B - \phi_2 B^2 - \cdots \phi_p B^p, \qquad \theta(B) = 1 + \theta_1 B + \theta_2 B^2 + \cdots + \theta_q B^q.
+$$
+
+This model is *causal* (stationary) if all roots of $\phi(B) = 0$ lie strictly outside the unit circle; additionally, it is *invertible* if all roots of $\theta(B) = 0$ lie strictly outside the unit circle.
+
+To specify this, the `forecast` R package features `Arima(x, order = c(p, 1, q), lambda = 0)`, where `lambda = 0` applies the logarithmic Box-Cox transform internally, and automatically back-transforms forecasts to the original scale.
+
+### 3.2.1 Model identification
+
+Given a stationary series $Y_t$, the **autocorrelation function** (ACF) at lag $k$ is:
+
+$$
+\rho_k = \frac{\mathrm{Cov}(Y_t,\,Y_{t-k})}{\mathrm{Var}(Y_t)},
+$$
+
+and the **partial autocorrelation function** (PACF) $\alpha_k$ measures the linear dependence between $Y_t$ and $Y_{t-k}$ after eliminating the effect pf $Y_{t-1}, \ldots, Y_{t-k+1}$. The Box-Jenkins identification table is:
+
+\begin{table}
+Model & Theoretical ACF & Theoretical PACF \\
+\hline
+AR$(p)$ & Geometric decay/oscillation & Cuts off after lag $p$ \\
+MA$(q)$ & Decays after lag $q$ & Geometric decay/oscillation \\
+ARMA$(p, q)$ & Decays after lag $q - p$ & Decays after lag $p - q$
+\end{table}
+
+Approximate 95\% bounds on the sample ACF/PACF are $\pm 1.96/\sqrt{n}$, where $n$ is the length of the differenced series.
+
+### 3.2.2 Model selection
+
+Candidate models are compared using the corrected Akaike Information Criterion:
+
+$$
+\mathrm{AICc} = -2\,\hat{\ell} + 2k + \frac{2k(k + 1)}{n - k - 1},
+$$
+
+where $\hat{\ell}$ is the maximised log-likelihood and $k$ is the number of free parameters. AICc is typically preferred over AIC for small $n$ [@BurnhamAnderson2002] as a stronger model complexity penalty reduces the risk of overfit and over-parameterisation.
+
+## 3.3 Residual Diagnostics
+
+An accurate, well-specified model should yield residuals $\hat{\varepsilon}_t$ that resemble white noise. This is assessed using three complementary tools:
+
+1. **ACF of residuals**. All sample autocorrelations should lie within the 95% (i.e., $\pm 1.96/\sqrt{n}$);
+2. **Ljung-Box test** [@Ljung-Box1978]. The portmanteau statistic $$Q^* = n(n + 2)\sum_{k=1}^m \frac{\hat{\rho}_k^2}{n - k}$$ is compared to $\chi^2(m - p - q)$ under $H_0$ (i.e., no residual corelation prior to lag $m$). The degrees of freedom correction `fitdf` $= p + q$ accounts for parameters that are influenced by estimation error. Omitting it (setting `fitdf = 0`) artifically 'inflates' the $\chi^2$ test statistic;
+3. **Residual histogram**: valid Gaussian prediction intervals require residuals that are approximately Normal.
+
+## 3.4 Forecast Accuracy Measurement
+
+Point-forecast performance over our 'hold-out' period (2013--2024) is measured by:
+
+$$
+\mathrm{RMSE} = \sqrt{\frac{1}{h}\sum_{t = 1}^h e_t^2}, \quad \mathrm{MAE} = \frac{1}{h}\sum_{t=1}^h |e_t|, \quad \mathrm{MAPE} = \frac{100}{h}\left|\frac{e_t}{X_t}\right|
+$$
+
+where $e_t \hat{X}_t - X_t$. As mentioned, **Theil's U** compares model RMSE to that of the naive (that is, the random walk) forecast; $U < 1$ indicates the model outperforms the initial naive benchmark.
+
+---
+
+# 4 Exploratory Analysis
+
+## 4.1 Log Transformation Assessment
+
+```{r log-plots, fig.width=8.5, fig.height=4.5, fig.cap="Raw versus log-transformed series for TFR (top row) and TLB (bottom row); training period 1960--2012."}
+par(mfrow = c(2, 2), mar = c(4, 4, 2.5, 1), family = "serif")
+plot(tfr_train, main = "TFR - Raw", ylab = "TFR", xlab = "", las = 1)
+plot(log(tfr_train), main = "TFR - Log", ylab = "log(TFR)", xlab = "", las = 1)
+plot(tlb_train, main = "TLB - Raw", ylab = "Live Births", xlab = "Year", las = 1)
+plot(log(tlb_train), main = "TLB - Log", ylab = "log(TLB)", xlab = "Year", las = 1)
 
 par(mfrow = c(1, 1))
 ```
 
-\newpage
+
+
 # Stationarity Testing
 
 ## Raw Series
