@@ -239,7 +239,7 @@ where $\hat{\ell}$ is the maximised log-likelihood and $k$ is the number of free
 An accurate, well-specified model should yield residuals $\hat{\varepsilon}_t$ that resemble white noise. This is assessed using three complementary tools:
 
 1. **ACF of residuals**. All sample autocorrelations should lie within the 95% (i.e., $\pm 1.96/\sqrt{n}$);
-2. **Ljung-Box test** [@Ljung-Box1978]. The portmanteau statistic $$Q^* = n(n + 2)\sum_{k=1}^m \frac{\hat{\rho}_k^2}{n - k}$$ is compared to $\chi^2(m - p - q)$ under $H_0$ (i.e., no residual corelation prior to lag $m$). The degrees of freedom correction `fitdf` $= p + q$ accounts for parameters that are influenced by estimation error. Omitting it (setting `fitdf = 0`) artifically 'inflates' the $\chi^2$ test statistic;
+2. **Ljung-Box test** [@LjungBox1978]. The portmanteau statistic $$Q^* = n(n + 2)\sum_{k=1}^m \frac{\hat{\rho}_k^2}{n - k}$$ is compared to $\chi^2(m - p - q)$ under $H_0$ (i.e., no residual corelation prior to lag $m$). The degrees of freedom correction `fitdf` $= p + q$ accounts for parameters that are influenced by estimation error. Omitting it (setting `fitdf = 0`) artifically 'inflates' the $\chi^2$ test statistic;
 3. **Residual histogram**: valid Gaussian prediction intervals require residuals that are approximately Normal.
 
 ## 3.4 Forecast Accuracy Measurement
@@ -319,7 +319,7 @@ stationarity_diff <- tibble(
   `ADF p-value` = c(round(adf_d_tfr$p.value, 4), round(kpss_d_tlb$p.value, 4)),
   Conclusion = c("Stationary", "Stationary")
   )
-kable(stationarity-diff, booktabs = TRUE, escape = FALSE, caption = "Stationarity tests on log-differenced training series.") |>
+kable(stationarity_diff, booktabs = TRUE, escape = FALSE, caption = "Stationarity tests on log-differenced training series.") |>
   kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
 ```
 
@@ -388,67 +388,53 @@ kable(
 kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
 ```
 
-\newpage
-## TLB - Candidate Model
+## 5.2 TLB Candidate Model
 
-```{r model-tlb, echo=FALSE, fig.width=6, fig.height=5, results='hide'}
-tlb_model1 <- Arima(tlb_train_ts, order = c(0, 0, 0)) # TBD
+- **L1**: ARIMA$(0, 1, 1)$;
+- **L2**: ARIMA$(1, 1, 1)$;
+- **L3**: ARIMA$(0, 1, 2)$ (two MA terms to identify lag-2 structure.
+
+```{r fit-tlb, results='hide'}
+fit_L1 <- Arima(tlb_train, order = c(0, 1, 1), lambda = 0, include.constant = TRUE)
+fit_L2 <- Arima(tlb_train, order = c(1, 1, 1), lambda = 0, include.constant = TRUE)
+fit_L3 <- Arima(tlb_train, order = c(0, 1, 2), lambda = 0, include.constant = TRUE)
 ```
 
-```{r model-tlb-results, echo=FALSE}
-lb_tlb <- Box.test(residuals(tlb_model1), lag = 10, type = "Ljung-Box", fitdf = 0)
-
-knitr::kable(
-	accuracy(tlb_model1) |> as.data.frame(),
-	digits = 4, caption = "TLB training set error measures"
-)
-
-knitr::kable(
-	tibble(
-		'Q*' = lb_tlb$statistic,
-		df = lb_tlb$parameter,
-		'p-value' = lb_tlb$p.value
-	), digits = 4, caption = "TLB Ljung-Box test on residuals (lag = 10)"
-)
+```{r tlb-model-selection}
+tlb_sel <- tibble(
+                  Model = c("ARIMA(0, 1, 1)", "ARIMA(1, 1, 1)", "ARIMA(0, 1, 2)"),
+                  AIC = c(AIC(fit_L1), AIC(fit_L2), AIC(fit_L3)),
+                  AICc = c(fit_L1$aicc, fit_L2$aicc, fit_L3$aicc),
+                  BIC = c(BIC(fit_L1), BIC(fit_L2), BIC(fit_L3))
+                  )
+best_L <- which.min(tlb_sel$AICc)
+kable(tlb_sel, digits = 3, booktabs = TRUE, caption = "Information criteria for TLB candidate models (log scale).") |>
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 10) |>
+  row_spec(best_L, bold = TRUE)
 ```
 
-```{r diag-tlb, echo=FALSE, fig.width=6, fig.height=5, results='hide'}
-checkresiduals(tlb_model1)
+```{r tlb-select-fit}
+tlb_names <- c("ARIMA(0, 1, 1)", "ARIMA(1, 1, 1)", "ARIMA(0, 1, 2)")
+tlb_fits <- list(fit_L1, fit_L2, fit_L3)
+tlb_best <- tlb_fits[[best_L]]
+tlb_best_name <- tlb_names[best_L]
 ```
 
-# Forecasting Model & Assessment
-```{r forecasting, echo=FALSE, fig.height=6, fig.width=6}
-tfr_fc <- forecast(tfr_model1, h = 12)
-tlb_fc <- forecast(tlb_model1, h = 12)
-
-# TFR Forecasting
-autoplot(tfr_fc) +
-	autolayer(tfr_test, series = "Actual", colour = "red") +
-	labs(
-		title = "TFR Forecast (2013-2024) vs Actual",
-		x = "Year", y = "TFR"
-	) +
-	theme_minimal()
-
-# TLB Forecasting
-autoplot(tlb_fc) +
-	autolayer(tlb_test, series = "Actual", colour = "red") +
-	labs(
-		title = "TLB Forecast (2013-2024) vs Actual",
-		x = "Year", y = "TLB"
-	) +
-	theme_minimal()
-
-tfr_test_ts <- ts(tfr_test$TFR, start = 2013, frequency = 1)
-tlb_test_ts <- ts(tlb_test$TLB, start = 2013, frequency = 1)
-
-# Accuracy measurement
-acc_tfr <- accuracy(tfr_fc, tfr_test_ts)
-acc_tlb <- accuracy(tlb_fc, tlb_test_ts)
-
-knitr::kable(acc_tfr, digits = 4, caption = "TFR forecast accuracy")
-knitr::kable(acc_tlb, digits = 4, caption = "TLB forecast accuracy")
+```{r tlb-coef-table}
+cf_l <- coef(tlb_best);   se_l <- sqrt(diag(vcov(tlb_best)))
+zv_l <- cf_l / se_l;      pv_l <- 2 * pnorm(-abs(zv_l))
+kable(
+      tibble(Parameter = names(cf_l),
+             Estimate = round(cf_l, 5),
+             `Std.Error` = round(se_l, 5),
+             `z_stat` = round(zv_l, 3),
+             `p-value` = round(pv_l, 4)),
+      booktabs = TRUE,
+      caption = paste("Estimated parameters:", tlb_best_name, "(log-scale TLB).")
+      ) |> kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
 ```
+
+---
 
 # Key Temporal Insights
 The figures throughout this EDA show a sharp decline in both TLB and TFR post-1960s, which is indicative of Singapore's rapid demographic transformation. TLB drops from peaks around 1965 (~60,000 births) among the early baby booms, stabilising below 40,000 by the 2000s; TFR plummets from >4.5 in 1960 to a remaining fifth of this figure, with its notable troughs in the 1970s (during the presence of their two-limit policy) and 2020s (during the COVID-19 pandemic). Visual patterns indicate strong negative trends, potential cyclical behaviour, and increased volatility post-2010.
