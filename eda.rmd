@@ -131,8 +131,8 @@ For forecasting evaluation, the full series is partitioned into a training windo
 ```{r summary-table}
 summary_tbl <- tibble(
                       Statistic = c("Min", "Q1", "Median", "Mean", "Q3", "Max", "NAs"),
-                      TFR = c(min(tfr_tsb), quantile(tfr_tsb, .25), median(tfr_tsb), mean(tfr_tsb), quantile(tfr_tsb, .75), max(tfr_tsb), sum(is.na(tfr_tsb)))
-                      TLB = c(min(tlb_tsb), quamtile(tlb_tsb, .25), median(tlb_tsb), mean(tlb_tsb), quamtile(tlb_tsb, .75), max(tlb_tsb), sum(is.na(tlb_tsb)))
+                      TFR = c(min(tfr_tsb), quantile(tfr_tsb, .25), median(tfr_tsb), mean(tfr_tsb), quantile(tfr_tsb, .75), max(tfr_tsb), sum(is.na(tfr_tsb))),
+                      TLB = c(min(tlb_tsb), quantile(tlb_tsb, .25), median(tlb_tsb), mean(tlb_tsb), quantile(tlb_tsb, .75), max(tlb_tsb), sum(is.na(tlb_tsb)))
                       )
 kable(summary_tbl, digits = 2, booktabs = TRUE, caption = "Summary statistics for TFR and TLB (1960--2024).") |>
   kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
@@ -268,117 +268,124 @@ plot(log(tlb_train), main = "TLB - Log", ylab = "log(TLB)", xlab = "Year", las =
 par(mfrow = c(1, 1))
 ```
 
+Figure 2 confirms that the log-transformation reduces heteroskedasticity considerably among both series; the large fluctuations earlier on in TLB are quite attenuated in comparison to the stable post-1985 period. However, a downward trend continues among both series, which prompts for first differencing.
 
+# 4.2 Log-Differenced Series
 
-# Stationarity Testing
+```{r logdiff-series, fig.width=8.5, fig.height=3.5, fig.cap="Log-differenced series $(1-B)\\log X_t$ for TFR (left) and TLB (right), over training period 1961--2012."}
+d_tfr <- diff(log(tfr_train))
+d_tlb <- diff(log(tlb_train))
 
-## Raw Series
+par(mfrow = c(1, 2), mar = c(4, 4.2, 2.5, 1), family = "serif")
+plot(d_tfr, main = expression((1-B)*log(TFR)), ylab = "Log-difference", xlab = "Year", las = 1)
+abline(h = 0, lty = 2, col = "grey55")
+plot(d_tlb, main = expression((1-B)*log(TLB)), ylab = "Log-difference", xlab = "Year", las = 1)
+abline(h = 0, lty = 2, col = "grey55")
+par(mfrow = c(1, 1))
+```
 
-```{r stationarity-raw, echo=FALSE}
-adf_tfr <- adf.test(tfr_train_ts)
-kpss_tfr <- kpss.test(tfr_train_ts)
+## 4.3 Stationary Tests
 
-adf_tlb <- adf.test(tlb_train_ts)
-kpss_tlb <- kpss.test(tlb_train_ts)
+### 4.3.1 Raw Series
+
+```{r stationarity-raw}
+adf_tfr <- adf.test(tfr_train)
+kpss_tfr <- kpss.test(tfr_train, null = "Level")
+
+adf_tlb <- adf.test(tlb_train)
+kpss_tlb <- kpss.test(tlb_train, null = "Level")
 
 stationarity_raw <- tibble(
 	Series = c("TFR", "TLB"),
-	`ADF p-value` = c(adf_tfr$p.value, adf_tlb$p.value),
-	`KPSS p-value` = c(kpss_tfr$p.value, kpss_tlb$p.value)
+	`ADF p-value` = c(round(adf_tfr$p.value, 4), round(adf_tlb$p.value, 4)),
+	`KPSS p-value` = c(round(kpss_tfr$p.value, 4), round(kpss_tlb$p.value, 4)),
+  Conclusion = c("Non-stationary", "Non-stationary")
 )
-
-knitr::kable(stationarity_raw, digits = 4,
-	caption = "Stationarity tests - raw training series (1960-2012)")
+kable(stationarity_raw, booktabs = TRUE, caption = "Stationarity tests on raw training series (1960--2012).") |>
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
 ```
 
-## First Difference Series
+### 4.3.2 Log-Differenced series
 
-```{r stationarity-diff, echo=FALSE}
-adf_tfr_d <- adf.test(diff(tfr_train_ts))
-kpss_tfr_d <- kpss.test(diff(tfr_train_ts))
+```{r stationarity-logdiff}
+adf_d_tfr <- adf.test(d_tfr)
+kpss_d_tfr <- kpss.test(d_tfr, null = "Level")
 
-adf_tlb_d <- adf.test(diff(tlb_train_ts))
-kpss_tlb_d <- kpss.test(diff(tlb_train_ts))
+adf_d_tlb <- adf.test(d_tlb)
+kpss_d_tlb <- kpss.test(d_tlb, null = "Level")
 
 stationarity_diff <- tibble(
-	Series = c("$\\Delta$TFR", "$\\Delta$TLB"),
-	`ADF p-value` = c(adf_tfr_d$p.value, adf_tlb_d$p.value),
-	`KPSS p-value` = c(kpss_tfr_d$p.value, kpss_tlb_d$p.value)
-)
-
-knitr::kable(stationarity_diff, digits = 4,
-	escape = FALSE,
-	caption = "Stationarity tests - first-differenced training series")
+	Series = c("$(1-B)\\log(\\text{TFR})$", "$(1-B)\\log(\\text{TLB})$"),
+  `ADF p-value` = c(round(adf_d_tfr$p.value, 4), round(kpss_d_tlb$p.value, 4)),
+  Conclusion = c("Stationary", "Stationary")
+  )
+kable(stationarity-diff, booktabs = TRUE, escape = FALSE, caption = "Stationarity tests on log-differenced training series.") |>
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
 ```
 
-\newpage
 
-# ACF & PACF Analysis
+## 4.4 ACF & PACF Analysis
 
-```{r acf-pacf-raw, echo=FALSE, fig.width = 6, fig.height = 4.5}
-par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+```{r acf-pacf-logdiff, fig.width = 8.5, fig.height = 4.5, fig.cap="ACF (left column) and PACF (right column) of $(1-B)\\log X_t$ for TFR (top row) and TLB (bottom row), over training period. Lags extend to 25. Blue dasheed lines are 95\\% bounds $\\pm 1.96/\\sqrt{n}$."}
+par(mfrow = c(2, 2), mar = c(4, 4.2, 3, 1), family = "serif")
 
-Acf(tfr_train_ts, main = "TFR - ACF")
-Pacf(tfr_train_ts, main = "TFR - PACF")
-Acf(tlb_train_ts, main = "TLB - ACF")
-Pacf(tlb_train_ts, main = "TLB - PACF")
+Acf(d_tfr, lag.max = 25, main = expression(Delta * log(TFR) ~ "-- ACF"))
+Pacf(d_tfr, lag.max = 25, main = expression(Delta * log(TFR) ~ "-- PACF"))
+Acf(d_tlb, lag.max = 25, main = expression(Delta * log(TLB) ~ "-- ACF"))
+Pacf(d_tlb, lag.max = 25, main = expression(Delta * log(TLB) ~ "--PACF"))
 
 par(mfrow = c(1, 1))
 ```
 
-```{r acf-pacf-diff, echo=FALSE, fig.width = 6, fig.height = 4.5}
-par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+# 5. Model Identification and Estimation
 
-Acf(diff(tfr_train_ts), main = expression(Delta * TFR ~ "- ACF"))
-Pacf(diff(tfr_train_ts), main = expression(Delta * TFR ~ "- PACF"))
-Acf(diff(tlb_train_ts), main = expression(Delta * TLB ~ "- ACF"))
-Pacf(diff(tlb_train_ts), main = expression(Delta * TLB ~ "- PACF"))
+## 5.1 TFR Candidate Model
 
-par(mfrow = c(1, 1))
+- **T1**: ARIMA$(0, 1, 1)$; pure MA(1) on the log-differenced series;
+- **T2**: ARIMA$(1, 1, 1)$; ARMA(1, 1) on the log-differenced series;
+- **T3**: ARIMA$(1, 1, 0)$; pure AR(1) on the log-differenced series.
+
+```{r fit-tfr, result='hide'}
+fit_T1 <- Arima(tfr_train, order = c(0, 1, 1), lambda = 0, include.constant = TRUE)
+fit_T2 <- Arima(tfr_train, order = c(1, 1, 1), lambda = 0, include.constant = TRUE)
+fit_T3 <- Arima(tfr_train, order = c(1, 1, 0), lambda = 0, include.constant = TRUE)
 ```
 
-# Decomposition
-```{r decompose-tfr, echo=FALSE, fig.width=7, fig.height=5}
-tfr_trend <- stats::filter(tfr_train_ts, filter = rep(1/5, 5), sides = 2)
+```{r tfr-model-selection}
+tfr_sel <- tibble(
+                  Model = c("ARIMA(0, 1, 1)", "ARIMA(1, 1, 1)", "ARIMA(1, 1, 0)"),
+                  AIC = c(AIC(fit_T1), AIC(fit_T2), AIC(fit_T3)),
+                  AICc = c(fit_T1$aicc, fit_T2$aicc, fit_T3$aicc),
+                  BIC = c(BIC(fit_T1), BIC(fit_T2), BIC(fit_T3))
+                  )
 
-plot(tfr_train_ts, main = "TFR - Trend (5-year MA)", ylab = "TFR", col = "grey60")
-lines(tfr_trend, col = "steelblue", lwd = 2)
+best_T <- which.min(tfr_sel$AICc)
+kable(tfr_sel, digits = 3, booktabs = TRUE, caption = "Information criteria for TFR candidate models (log scale).") |>
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 10) |>
+  row_spec(best_T, bold = TRUE)
 ```
 
-```{r decompose-tlb, echo=FALSE, fig.width=7, fig.height=5}
-tlb_trend <- stats::filter(tlb_train_ts, filter = rep(1/5, 5), sides = 2)
-
-plot(tlb_train_ts, main = "TLB - Trend (5-year MA)", ylab = "TLB", col = "grey60")
-lines(tlb_trend, col = "steelblue", lwd = 2)
+```{r tfr-select-fit}
+tfr_names <- c("ARIMA(0, 1, 1)", "ARIMA(1, 1, 1)", "ARIMA(1, 1, 0)")
+tfr_fits <- list(fit_T1, fit_T2, fit_T3)
+tfr_best <- tfr_fits[[best_T]]
+tfr_best_name <- tfr_names[best_T]
 ```
 
-# Candidate Model Fitting
-
-## TFR - Candidate Model
-
-```{r model-tfr, echo=FALSE, fig.width=6, fig.height=5, results='hide'}
-tfr_model1 <- Arima(tfr_train_ts, order = c(0, 0, 0)) # TBD
-```
-
-```{r model-tfr-results, echo=FALSE}
-lb_tfr <- Box.test(residuals(tfr_model1), lag = 10, type = "Ljung-Box", fitdf = 0)
-
-knitr::kable(
-	accuracy(tfr_model1) |> as.data.frame(),
-	digits = 4, caption = "TFR training set error measures"
-)
-
-knitr::kable(
-	tibble(
-		'Q*' = lb_tfr$statistic,
-		df = lb_tfr$parameter,
-		'p-value' = lb_tfr$p.value
-	), digits = 4, caption = "TFR Ljung-Box test on residuals (lag = 10)"
-)
-```
-
-```{r diag-tfr, echo=FALSE, fig.width=6, fig.height=5, results='hide'}
-checkresiduals(tfr_model1)
+The model with the lowest AICc (bolded in Table 4, for reference) is selected. Its estimated coefficients are printed below:
+```{r tfr-coef-table}
+cf <- coef(tfr_best);   se <- sqrt(diag(vcov(tfr_best)))
+zv <- cf / se;          pv <- 2 * pnorm(-abs(zv))
+kable(
+      tibble(Parameter = names(cf),
+             Estimate = round(cf, 5),
+             `Std. Error` = round(se, 5),
+             `z-stat` = round(zv, 3),
+             `p-value` = round(pv, 4)),
+      booktabs = TRUE,
+      caption = paste("Estimated parameters:", tfr_best_name, "(log-scale TFR).")
+      ) |>
+kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
 ```
 
 \newpage
