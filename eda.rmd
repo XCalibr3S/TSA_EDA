@@ -78,6 +78,18 @@ Over the course of the last century, Singapore's demographic transition remains 
 - Introduce research questions: 'which policy interventions over 1960--2024 justify the significant structural deviations in TFR and TLB?', 'can ARIMA models trained on the 1960--2012 window project the 2013--2024 period?', 'what (and how do) demographic mechanisms account for the recent significant drop in TFR?'
 - State IED Box-Jenkins cycle as diagnostic tool
 
+Singapore features one of the most clearly-defined cases of demographic transitions in the modern world.The Total Fertility Rate (TFR, defined as the average number of children a woman would bear over her lifetime given current age-specific fertility rates) dramatically decreased from 5.76 in 1960 to 0.97 in 2024, a reduction of more than 80 per cent across 64 years. Total Live Births (TLB) followed a somewhat comparable trajectory, falling froma peak of ~61,775 in 1960 to levels below 35,000 as of recent.
+
+This pattern is partly attributable to gradual implementation of government policies. The 'Stop-at-Two' program, introduced in 1972, combined financial shortcomings for large families with generalised broader access to family planning [@Aassve2020], resulting in the steepest decline in TFR post-1970. The subsequent government program, dubbed 'Have Three or More if You Can Afford It', was inevitably reversed in 1987, providing a gradual relief of TFR. More recently, the COVID-19 pandemic caused a sharp birth deferral across 2020--2022, which is an identified phenomenon within more developed economies [@Aassve2020].
+
+These features make Singapore a great investigative subject for time series modelling: the series exhibit strong trend non-stationarity, potential breaks in structure and developed patterns, and an out-of-sample period which provides more information about the series. The analysis is performed under the premise of three research questions:
+
+1. **Policy attribution**; Which policy interventions over the documented 1960--2024 period best explain structural variation in TFR and TLB from a smooth decline trajectory?
+2. **Forecast fidelity**; Can ARIMA models trained on an 80% data window (i.e. 1960--2012) accurately project the 2013--2024 period?
+3. **Sub-replacement fertility**; What demographic features (age-structure shifts, ethnic differentials, and COVID-19 disruption, for instance) account for TFR falling below 1.0 recently?
+
+The analysis featured follows the Box-Jenkins identification, estimation, and diagnostic checking cycle, as well as the Harvard Data Analysis Lifecycle [@BoxJenkins1970].
+
 \newpage
 
 # 2 Data
@@ -121,7 +133,7 @@ tlb_tsb <- ts(tlb_df$Value, start = 1960, frequency = 1)
 tfr_train <- window(tfr_tsb, end = 2012)
 tfr_test <- window(tfr_tsb, start = 2013)
 tlb_train <- window(tlb_tsb, end = 2012)
-tlb_train <- window(tlb_tsb, start = 2013)
+tlb_test <- window(tlb_tsb, start = 2013)
 ```
 
 The data used throughout this report are sourced from *SingaporeCensus.csv*, a population census published by the Singapore Department of Statistics.
@@ -404,7 +416,7 @@ kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
 
 - **L1**: ARIMA$(0, 1, 1)$;
 - **L2**: ARIMA$(1, 1, 1)$;
-- **L3**: ARIMA$(0, 1, 2)$ (two MA terms to identify lag-2 structure.
+- **L3**: ARIMA$(0, 1, 2)$ (two MA terms to identify lag-2 structure).
 
 ```{r fit-tlb, results='hide'}
 fit_L1 <- Arima(tlb_train, order = c(0, 1, 1), lambda = 0, include.constant = TRUE)
@@ -497,7 +509,8 @@ kable_styling(latex_options = c("hold_position"), font_size = 10)
 ```{r fc-tfr, fig.width=7.5, fig.height=4.5, fig.cap=paste0("TFR forecast (2013--2024), ", tfr_best_name, ", with 80\\% and 95\\% prediction intervals; actual values in red.")}
 fc_tfr <- forecast(tfr_best, h = 12)
 autoplot(fc_tfr) +
-  autolayer(tfr_test, series = "Actual", colour = "red", size = 0.7) +
+  autolayer(tfr_test, series = "Actual") +
+  scale_colour_manual(values = c("Actual" = "red")) +
   labs(title = NULL, x = "Year", y = "TFR", colour = NULL) +
   theme_bw(base_size = 11) +
   theme(legend.position = "bottom")
@@ -506,7 +519,8 @@ autoplot(fc_tfr) +
 ```{r fc-tlb, fig.width=7.5, fig.height=4.5, fig.cap=paste0("TLB forecast (2013--2024), ", tlb_best_name, ", with 80\\% and 95\\% prediction intervals; actual values in red.")}
 fc_tlb <- forecast(tlb_best, h = 12)
 autoplot(fc_tlb) +
-  autolayer(tlb_test, series = "Actual", colour = "red", size = 0.7) +
+  autolayer(tlb_test, series = "Actual") +
+  scale_colour_manual(values = c("Actual" = "red")) +
   labs(title = NULL, x = "Year", y = "TLB", colour = NULL) +
   theme_bw(base_size = 11) +
   theme(legend.position = "bottom")
