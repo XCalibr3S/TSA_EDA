@@ -72,12 +72,6 @@ Over the course of the last century, Singapore's demographic transition remains 
 
 # 1 Introduction
 
-- Demographic transition
-- Discuss variables
-- Discuss significant change in variables, and why. EDA
-- Introduce research questions: 'which policy interventions over 1960--2024 justify the significant structural deviations in TFR and TLB?', 'can ARIMA models trained on the 1960--2012 window project the 2013--2024 period?', 'what (and how do) demographic mechanisms account for the recent significant drop in TFR?'
-- State IED Box-Jenkins cycle as diagnostic tool
-
 Singapore features one of the most clearly-defined cases of demographic transitions in the modern world.The Total Fertility Rate (TFR, defined as the average number of children a woman would bear over her lifetime given current age-specific fertility rates) dramatically decreased from 5.76 in 1960 to 0.97 in 2024, a reduction of more than 80 per cent across 64 years. Total Live Births (TLB) followed a somewhat comparable trajectory, falling froma peak of ~61,775 in 1960 to levels below 35,000 as of recent.
 
 This pattern is partly attributable to gradual implementation of government policies. The 'Stop-at-Two' program, introduced in 1972, combined financial shortcomings for large families with generalised broader access to family planning [@Aassve2020], resulting in the steepest decline in TFR post-1970. The subsequent government program, dubbed 'Have Three or More if You Can Afford It', was inevitably reversed in 1987, providing a gradual relief of TFR. More recently, the COVID-19 pandemic caused a sharp birth deferral across 2020--2022, which is an identified phenomenon within more developed economies [@Aassve2020].
@@ -139,7 +133,7 @@ tlb_test <- window(tlb_tsb, start = 2013)
 The data used throughout this report are sourced from *SingaporeCensus.csv*, a population census published by the Singapore Department of Statistics.
 The raw comma-separated-value file is stored in wide format, i.e. the years 1960--2024 are column headers. Two rows are extracted -- one for TFR and one for TLB -- and reshaped to long format by using `pivot_longer()`. The resulting cleaned dataset contains 65 annual observations per series with no missing values.
 
-For forecasting evaluation, the full series is partitioned into a training windows of $n = 53$ observations (from 1960 to 2012) and a complementary windows of $h = 12$ observations (2013 to 2024).
+For forecasting evaluation, the full series is partitioned into a training window of $n = 53$ observations (from 1960 to 2012) and a complementary window of $h = 12$ observations (2013 to 2024).
 
 # 2.2 Statistical Summary
 
@@ -215,7 +209,7 @@ $$
 where $\mathrm{WN}(0, \sigma^2)$ denotes a white-noise sequence (an uncorrelated process with zero mean and constant variance $\sigma^2$). The AR and MA polynomials are:
 
 $$
-\phi(B) = 1 - \phi_1 B - \phi_2 B - \phi_2 B^2 - \cdots \phi_p B^p, \qquad \theta(B) = 1 + \theta_1 B + \theta_2 B^2 + \cdots + \theta_q B^q.
+\phi(B) = 1 - \phi_1 B - \phi_2 B^2 - \cdots \phi_p B^p, \qquad \theta(B) = 1 + \theta_1 B + \theta_2 B^2 + \cdots + \theta_q B^q.
 $$
 
 This model is *causal* (stationary) if all roots of $\phi(B) = 0$ lie strictly outside the unit circle; additionally, it is *invertible* if all roots of $\theta(B) = 0$ lie strictly outside the unit circle.
@@ -336,8 +330,9 @@ adf_d_tlb <- adf.test(d_tlb)
 kpss_d_tlb <- kpss.test(d_tlb, null = "Level")
 
 stationarity_diff <- tibble(
-	Series = c("$(1-B)\\log(\\text{TFR})$", "$(1-B)\\log(\\text{TLB})$"),
-  `ADF p-value` = c(round(adf_d_tfr$p.value, 4), round(kpss_d_tlb$p.value, 4)),
+	Series = c("(1-B)log(TFR)", "(1-B)log(TLB)"),
+  `ADF p-value` = c(round(adf_d_tfr$p.value, 4), round(adf_d_tlb$p.value, 4)),
+  `KPSS p-vlaue` = c(round(kpss_d_tfr$p.value, 4), round(kpss_d_tlb$p.value, 4)),
   Conclusion = c("Stationary", "Stationary")
   )
 kable(stationarity_diff, booktabs = TRUE, escape = FALSE, caption = "Stationarity tests on log-differenced training series.") |>
@@ -347,7 +342,7 @@ kable(stationarity_diff, booktabs = TRUE, escape = FALSE, caption = "Stationarit
 
 ## 4.4 ACF & PACF Analysis
 
-```{r acf-pacf-logdiff, fig.width = 8.5, fig.height = 4.5, fig.cap="ACF (left column) and PACF (right column) of $(1-B)\\log X_t$ for TFR (top row) and TLB (bottom row), over training period. Lags extend to 25. Blue dasheed lines are 95\\% bounds $\\pm 1.96/\\sqrt{n}$."}
+```{r acf-pacf-logdiff, fig.width = 8.5, fig.height = 4.5, fig.cap="ACF (left column) and PACF (right column) of $(1-B)\\log X_t$ for TFR (top row) and TLB (bottom row), over training period. Lags extend to 25. Blue dashed lines are 95\\% bounds $\\pm 1.96/\\sqrt{n}$."}
 par(mfrow = c(2, 2), mar = c(4, 4.2, 3, 1), family = "serif")
 
 Acf(d_tfr, lag.max = 25, main = expression(Delta * log(TFR) ~ "-- ACF"))
@@ -361,7 +356,7 @@ par(mfrow = c(1, 1))
 \newpage
 
 
-# 5. Model Identification and Estimation
+# 5 Model Identification and Estimation
 
 ## 5.1 TFR Candidate Model
 
@@ -479,7 +474,7 @@ kable(
 kable_styling(latex_options = c("hold_position"), font_size = 10)
 ```
 
-A Ljung-Box $p$-value $> 0.05$ indicates no statistically significant residual autocorrelation in TFR up to lag 20, which supports the white-noise assumption needed for valid inference. The residual histogram (Figure 5, bottom right) should replicate a bell-shape for prediction intervals to be well-specified.
+A Ljung-Box $p$-value $> 0.05$ indicates mild residual autocorrelation in TFR up to lag 20, which loosely supports the white-noise assumption needed for valid inference. The reasoning for the following that at lag 10, the result may remain non-significant, and ARIMA(0, 1, 1) remains superior despite this shortcoming. The residual histogram (Figure 5, bottom right) should replicate a bell-shape for prediction intervals to be well-specified.
 
 ## 6.2 TLB Model
 
@@ -537,6 +532,108 @@ kable(acc_tfr, digits = 4, booktabs = TRUE, caption = paste("Forecast accuracy -
 
 kable(acc_tlb, diits = 4, booktabs = TRUE, caption = paste("Forecast accuracy - TLB, ", tlb_best_name, "(original scale).")) |>
   kable_styling(latex_options = c("hold_position", "striped"), font_size = 10)
+```
+
+\newpage
+# 8 Discussion
+
+## 8.1 Research Question 1: Policy Attribution
+
+The large decline in TFR from 5.76 in 1960 to below 2.0 by the late 1970s closely follows Singapore's 'Stop-at-Two' program (introduced 1972), which combined both financial disincentives for large families with extended access to family planning [@Aassve2020]. The brief recovery shown around 1987--1990 also coincides with the 'Have Three or More if You Can Afford It' reversal policy. The structural break post-2020 reflects COVID-19-induced birth deferrals, shown across developed economies [@Aassve2020]. These three key points represent structural breaks that a Box-Jenkins model trained on earlier data simply cannot anticipate, which considerably constrains hold-out forecast accuracy.
+
+## 8.2 Research Question 2: Forecast Fidelity
+
+ARIMA models trained on 80% data (i.e., 1960--2012) are constrained in their 2013--2024 performance by two key factors. Firstly, a strong downward trend in TFR has inconclusions regarding Theil's U; it appears loosely flattened to a naive random-walk-like structure around a low mean, which means the model's mean-reversion structure is not extensive in predictive detail. Secondly, the COVID-19 pandemic, namely in 2020--2021, lies entirely outside the training window. Theil's U quantifies whether the model properly extracts signal from the stationary component, and compares it to a naive random-walk benchmark.
+
+## 8.3 Research Question 3: Sub-Replacement Fertility
+
+Singapore's TFR dwindling below 1.0 since the early 2020s is a reflection of several structural mechanisms: delayed marriage and childbearing as a result of shifts in education and career norms; housing cost pressures massively affecting younger generations uniquely; differential fertility across ethnic groups (Chinese, Malay, Indian); and the massive impact of COVID-19 in birth deferral. These are demographic-structural mechanisms lying outside of the univariate ARIMA scope; incorporating them requires a multivariate VAR or state-space model with policy covariates, comparable to the Lee-Carter analysis of fertility by Lee [@Lee1992].
+
+## 8.4 Limitations
+
+The analysis of our series is circumscribed by various limitations:
+
+1. **Annual granularity**; with $n = 53$ training observations, estimates of parameters carry a large sampling uncertainty and Ljung-Box determinations at longer lags is considerably limited.
+2. **Structural breaks**; ADF and Box-Jenkins do not account for structural breaks; a Zivot-Andrews test [@ZivotAndrews1992] is a worthy process to account for this, and regime-switching models can accurately capture the distinct dynamics pre- and post-1975.
+3. **Conditional heteroskedasticity**; residual variance clustering in the early TFR log-differenced series prompts for ARIMA-GARCH modelling [@Bollerslev1986], a distinct path for refining analysis.
+4. **Forecast extension**; the 12-year hold-out test period includes the COVID-19 structural break, making a clean evaluation of model accuracy difficult. A shorter hold-out ending at 2019 would most likely provide an accurate assessment of model fit that disregards the pandemic shock. Comparatively, a larger dataset that extends to future data (i.e., train on 1960--2024, test on 2025--2040 possibly) would omit the structural breaks in the test data without jeopardising analysis fidelity.
+
+\newpage
+
+# References
+
+::: {#refs}
+:::
+
+\newpage
+
+# Appendix A: R Code
+
+```{r appendix, echo=TRUE, eval=FALSE}
+# --Libraries--
+library(tidyverse)	# for data wrangling & ggplot2
+library(tseries)	# for adf & kpss tests
+library(forecast)	# for acf/pacf, forecast & checkresiduals
+library(tsibble)	# for tsibble data structure
+library(knitr)
+library(kableExtra)
+
+# --Data loading and reshaping--
+raw <- read.csv("SingaporeCensus.csv", check.names = FALSE)
+long <- raw |>
+  rename(Series = DataSeries) |>
+  pivot_longer(-Series, names_to = "Year", values_to = "Value", 
+               names_transform = list(Year = as.integer)) |>
+  filter(Year >= 1960, Year <= 2024)
+
+tfr_tsb <- ts(tfr_df$Value, start = 1960, frequency = 1)
+tlb_tsb <- ts(tlb_df$Value, start = 1960, frequency = 1)
+
+tfr_train <- window(tfr_tsb, end = 2012)
+tfr_test <- window(tfr_tsb, start = 2013)
+tlb_train <- window(tlb_tsb, end = 2012)
+tlb_test <- window(tlb_tsb, start = 2013)
+
+# --Log-Differenced stationary series--
+d_tfr <- diff(log(tfr_train))
+d_tlb <- diff(log(tlb_train))
+
+# --Stationarity tests--
+adf.test(d_tfr)
+kpss.test(d_tfr, null = "Level")
+adf.test(d_tlb)
+kpss.test(d_tlb, null = "Level")
+
+# --ACF/PACF to lag 25--
+par(mfrow = c(2, 2))
+Acf(d_tfr, lag.max = 25)
+Pacf(d_tfr, lag.max = 25)
+Acf(d_tlb, lag.max = 25)
+Pacf(d_tlb, lag.max = 25)
+
+# --Model candidates--
+fit_T1 <- Arima(tfr_train, order = c(0, 1, 1), lambda = 0, include.constant = TRUE)
+fit_T2 <- Arima(tfr_train, order = c(1, 1, 1), lambda = 0, include.constant = TRUE)
+fit_T3 <- Arima(tfr_train, order = c(1, 1, 0), lambda = 0, include.constant = TRUE)
+
+fit_L1 <- Arima(tlb_train, order = c(0, 1, 1), lambda = 0, include.constant = TRUE)
+fit_L2 <- Arima(tlb_train, order = c(1, 1, 1), lambda = 0, include.constant = TRUE)
+fit_L3 <- Arima(tlb_train, order = c(0, 1, 2), lambda = 0, include.constant = TRUE)
+
+# --AICc selection--
+sapply(list(fit_T1, fit_T2, fit_T3), function(m) m$aicc)
+sapply(list(fit_L1, fit_L2, fit_L3), function(m) m$aicc)
+
+# --Check residuals--
+checkresiduals(fit_T1, lag = 20)
+Box.test(residuals(fit_T1), lag = 20, type = "Ljung-Box", 
+         fitdf = sum(arimaorder(fit_T1)[c(1, 3)]))
+
+# --Forecast and Accuracy--
+fc_tfr <- forecast(fit_T1, h = 12)
+fc_tlb <- forecast(fit_L1, h = 12)
+accuracy(fc_tfr, tfr_test)
+accuracy(fc_tlb, tlb_test)
 ```
 
 # Report GitHub Repo
